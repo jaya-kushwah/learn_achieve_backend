@@ -1,6 +1,6 @@
 
 const { getMockTestDetailsService } = require('../service/mockTestUserService');
-const { successResponse, errorResponse } = require('../utils/responseHandler');
+const { successResponse, errorResponse } = require('../utils/response');
 
 const QuestionBank = require("../model/questionModel");
 const MockTest = require("../model/mockTestModel"); 
