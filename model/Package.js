@@ -1,80 +1,76 @@
 const mongoose = require('mongoose');
 
-const packageSchema = new mongoose.Schema(
-  {
-    packageName: {
-      type: String,
-      required: true,
-      trim: true,
-      unique: true,
-    },
-    className: {
-      type: String,
-      required: true,
-      trim: true,
-      enum: ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'], 
-    },
-    medium: {
-      type: String,
-      required: true,
-      enum: ['Hindi', 'English'],
-    },
-  mockTests: {
-  type: [String], 
-  enum: ['Maths', 'Science', 'English', 'History', 'Geography'], 
-  required: true,
-},
-
-   numberOfAttempts: {
-  type: Number,
-  required: true,
-  min: [1, 'At least 1 attempt is required'],
-  max: [3, 'Number of attempts cannot exceed 3'],
-},
-
-    platform: {
-      type: String,
-      required: true,
-      enum: ['Bharat-Sat', 'ExamYa'],
-    },
-    actualPrice: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-    discountPrice: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    finalPrice: {
-      type: Number,
-      min: 0,
-    },
-    validityInDays: {
-      type: Number,
-      required: true,
-      min: 1,
-    },
-    image: {
-      type: String,
-      default: '',
-    },
-      isActive: {
-     type: Boolean, 
-     default: true }
+const packageSchema = new mongoose.Schema({
+  packageName: {
+    type: [String],
+    required: true
   },
-  {
-    timestamps: true,
-  }
-);
+  medium: {
+    type: String,
+    enum: ['Hindi', 'English'],
+    required: true
+  },
+   className: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'ClassMaster',
+  required: true
+},
 
-// calculate finalPrice before saving
+  image: {
+    type: String,
+    required: true
+  },
+  mockTests: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'MockTest',
+    required: true
+  }],
+  numberOfAttempts: {
+    type: Number,
+    required: true
+  },
+  platform: {
+    type: String,
+    enum: ['Bharat Sat', 'Pradanya Learnatics'],
+    required: true
+  },
+  actualPrice: {
+    type: Number,
+    required: true
+  },
+  discountPrice: {
+    type: Number,
+    required: true,
+    validate: {
+      validator: function (v) {
+        return v < this.actualPrice;
+      },
+      message: 'Discount price must be less than actual price'
+    }
+  },
+  finalPrice: {
+    type: Number // removed validator here
+  },
+  validityInDays: {
+    type: Number,
+    required: true
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  }
+}, {
+  timestamps: true
+});
+
+// Pre-save hook to calculate and validate finalPrice
 packageSchema.pre('save', function (next) {
+  if (this.discountPrice >= this.actualPrice) {
+    return next(new Error('Discount price must be less than actual price'));
+  }
+
   this.finalPrice = this.actualPrice - this.discountPrice;
   next();
 });
-
 const Package = mongoose.model('Package', packageSchema);
-
 module.exports = Package;
