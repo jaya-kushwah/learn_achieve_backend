@@ -13,10 +13,9 @@ router.post("/verify-login", controller.verifyLogin);
 
 // Forgot Password
 router.post("/send-reset-otp", controller.sendResetOtp);
-router.post("/verify-reset-otp", protect, controller.verifyResetOtp);
+router.post("/verify-reset-otp",protect,controller.verifyResetOtp);
 router.post("/reset-password",protect, controller.resetPassword);
 router.get("/me", protect, controller.getAdminDetails);
 
 module.exports = router;
-
 

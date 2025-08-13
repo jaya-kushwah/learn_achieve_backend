@@ -23,23 +23,6 @@ const orderController = {
     }
   },
 
-  // Get all orders by user ID
-// getAllOrdersByUserId: async (req, res) => {
-//   try {
-//     const userId = req.user.id;
-//     const page = parseInt(req.query.page) || 1;  // Default to page 1
-//     const limit = parseInt(req.query.limit) || 10; // Default limit to 10
-
-//     if (!userId) {
-//       return res.status(400).json({ message: 'User ID not found in request' });
-//     }
-
-//     const orders = await orderService.getAllOrdersByUserId(userId, page, limit);
-//     res.status(200).json({ message: 'Orders fetched successfully', page, limit, orders });
-//   } catch (err) {
-//     res.status(500).json({ message: err.message });
-//   }
-// },
 getAllOrdersByUserId: async (req, res) => {
   try {
     const userId = req.user.id;
@@ -101,119 +84,116 @@ getAllOrdersByUserId: async (req, res) => {
       res.status(404).json({ message: err.message });
     }
   },
-  
 
+  
 // getOrderedPackagesWithDetails: async (req, res) => {
 //   try {
-//     const orders = await Order.find().lean();
+//     const userId = req.user._id;
+//     console.log(userId);
+    
 
-//     const packageToOrderMap = new Map(); // Map packageId -> orderId(s)
+//     const orders = await Order.find({ userId }).lean();
 
-//     for (let order of orders) {
-//       if (Array.isArray(order.packages)) {
-//         for (let pkg of order.packages) {
-//           if (pkg?.packageId) {
-//             const key = pkg.packageId.toString();
-//             if (!packageToOrderMap.has(key)) {
-//               packageToOrderMap.set(key, []);
+//     if (!orders.length) {
+//       return res.status(200).json({
+//         success: true,
+//         message: 'No ordered packages found for the user',
+//         data: [],
+//       });
+//     }
+
+//     const orderedPackages = [];
+
+//     for (const order of orders) {
+//       for (const pkg of order.packages) {
+//         const packageId = pkg.packageId;
+
+//         const fullPackage = await Package.findById(packageId)
+//           .populate({
+//             path: 'mockTests',
+//             populate: {
+//               path: 'questions',
+//             },
+//           })
+//           .lean();
+
+//         if (fullPackage) {
+//           // Now manually handle missing questions
+//           for (let mockTest of fullPackage.mockTests) {
+//             // Attach orderId
+//             mockTest.orderId = order._id;
+
+//             // If no questions, fetch based on subjects
+//             if (!mockTest.questions || mockTest.questions.length === 0) {
+//               mockTest.questions = [];
+
+//               for (let subjectId of mockTest.subjects) {
+//                 const subjectQuestions = await QuestionBank.aggregate([
+//                   {
+//                     $match: {
+//                       subjectId: new mongoose.Types.ObjectId(subjectId),
+//                       status: 'active',
+//                     },
+//                   },
+//                   { $sample: { size: 3 } },
+//                 ]);
+
+//                 mockTest.questions.push(...subjectQuestions);
+//               }
 //             }
-//             packageToOrderMap.get(key).push(order._id);
+
+//             // Add subQuestions for Poem/Comprehensive
+//             for (let i = 0; i < mockTest.questions.length; i++) {
+//               const question = mockTest.questions[i];
+
+//               if (
+//                 question.typeOfQuestion === 'Poem' ||
+//                 question.typeOfQuestion === 'Comprehensive'
+//               ) {
+//                 const subQuestions = await SubQuestion.find({
+//                   parentId: question._id,
+//                 }).lean();
+
+//                 mockTest.questions[i] = {
+//                   ...question,
+//                   subQuestions,
+//                 };
+//               }
+//             }
 //           }
+
+//           orderedPackages.push(fullPackage);
 //         }
 //       }
 //     }
 
-//     const uniquePackageIds = Array.from(packageToOrderMap.keys()).map(
-//       (id) => new mongoose.Types.ObjectId(id)
-//     );
-
-//     const packages = await Package.find({ _id: { $in: uniquePackageIds } })
-//       .populate({
-//         path: 'mockTests',
-//         populate: {
-//           path: 'questions',
-//           model: 'QuestionBank'
-//         }
-//       })
-//       .lean();
-
-//     // Add orderId and process mockTests
-//     for (let pkg of packages) {
-//       const pkgOrderIds = packageToOrderMap.get(pkg._id.toString()) || [];
-
-//       for (let mockTest of pkg.mockTests) {
-//         // Attach the first orderId (or all if needed)
-//         mockTest.orderId = pkgOrderIds[0];
-
-//         // Assign questions if none exist
-//         if (!mockTest.questions || mockTest.questions.length === 0) {
-//           mockTest.questions = [];
-
-//           for (let subjectId of mockTest.subjects) {
-//             const subjectQuestions = await QuestionBank.aggregate([
-//               {
-//                 $match: {
-//                   subjectId: new mongoose.Types.ObjectId(subjectId),
-//                   status: 'active',
-//                 },
-//               },
-//               { $sample: { size: 3 } },
-//             ]);
-
-//             mockTest.questions.push(...subjectQuestions);
-//           }
-//         }
-
-//         // Add subQuestions for Poem/Comprehensive
-//         for (let i = 0; i < mockTest.questions.length; i++) {
-//           const question = mockTest.questions[i];
-
-//           if (
-//             question.typeOfQuestion === 'Poem' ||
-//             question.typeOfQuestion === 'Comprehensive'
-//           ) {
-//             const subQuestions = await SubQuestion.find({
-//               parentId: question._id,
-//             }).lean();
-
-//             mockTest.questions[i] = {
-//               ...question,
-//               subQuestions,
-//             };
-//           }
-//         }
-//       }
-//     }
-
-//     res.status(200).json({
+//     return res.status(200).json({
 //       success: true,
 //       message: 'Ordered packages with MockTests and Questions fetched successfully',
-//       data: packages,
+//       data: orderedPackages,
 //     });
-//   } catch (error) {
-//     console.error('Error in getOrderedPackagesWithDetails:', error);
-//     res.status(500).json({
+//   } catch (err) {
+//     console.error('Error in getOrderedPackagesWithDetails:', err);
+//     return res.status(500).json({
 //       success: false,
-//       message: 'Error fetching ordered packages',
-//       error: error.message,
+//       message: 'Server Error',
+//       error: err.message,
 //     });
 //   }
-// },
+// }
 
 
-
-
-
-getOrderedPackagesWithDetails: async (req, res) => {
+getOrderedPackagesWithDetails : async (req, res) => {
   try {
     const userId = req.user._id;
+    console.log("User ID:", userId);
 
     const orders = await Order.find({ userId }).lean();
 
     if (!orders.length) {
       return res.status(200).json({
         success: true,
-        message: 'No ordered packages found for the user',
+        message: "No ordered packages found for the user",
         data: [],
       });
     }
@@ -226,50 +206,45 @@ getOrderedPackagesWithDetails: async (req, res) => {
 
         const fullPackage = await Package.findById(packageId)
           .populate({
-            path: 'mockTests',
+            path: "mockTests",
             populate: {
-              path: 'questions',
+              path: "questions",
+              strictPopulate: false, // strictPopulate error avoid
             },
           })
           .lean();
 
         if (fullPackage) {
-          // Now manually handle missing questions
           for (let mockTest of fullPackage.mockTests) {
-            // Attach orderId
             mockTest.orderId = order._id;
 
-            // If no questions, fetch based on subjects
+            // अगर questions empty हैं तो subject के हिसाब से लाओ
             if (!mockTest.questions || mockTest.questions.length === 0) {
               mockTest.questions = [];
-
               for (let subjectId of mockTest.subjects) {
                 const subjectQuestions = await QuestionBank.aggregate([
                   {
                     $match: {
                       subjectId: new mongoose.Types.ObjectId(subjectId),
-                      status: 'active',
+                      status: "active",
                     },
                   },
                   { $sample: { size: 3 } },
                 ]);
-
                 mockTest.questions.push(...subjectQuestions);
               }
             }
 
-            // Add subQuestions for Poem/Comprehensive
+            // SubQuestions attach करो
             for (let i = 0; i < mockTest.questions.length; i++) {
               const question = mockTest.questions[i];
-
               if (
-                question.typeOfQuestion === 'Poem' ||
-                question.typeOfQuestion === 'Comprehensive'
+                question.typeOfQuestion === "Poem" ||
+                question.typeOfQuestion === "Comprehensive"
               ) {
                 const subQuestions = await SubQuestion.find({
                   parentId: question._id,
                 }).lean();
-
                 mockTest.questions[i] = {
                   ...question,
                   subQuestions,
@@ -277,7 +252,6 @@ getOrderedPackagesWithDetails: async (req, res) => {
               }
             }
           }
-
           orderedPackages.push(fullPackage);
         }
       }
@@ -285,21 +259,19 @@ getOrderedPackagesWithDetails: async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Ordered packages with MockTests and Questions fetched successfully',
+      message:
+        "Ordered packages with MockTests and Questions fetched successfully",
       data: orderedPackages,
     });
   } catch (err) {
-    console.error('Error in getOrderedPackagesWithDetails:', err);
+    console.error("Error in getOrderedPackagesWithDetails:", err);
     return res.status(500).json({
       success: false,
-      message: 'Server Error',
+      message: "Server Error",
       error: err.message,
     });
   }
 }
-
-
-
 
 };
 
