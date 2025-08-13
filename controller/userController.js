@@ -81,3 +81,6 @@ exports.getAdminDetails=async (req, res) => {
     res.status(400).json({ message: err.message });
   }
 };
+
+
+// eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4NzBjYmQxMGI1YWFmMmQ4ZTFlODQyNCIsImlhdCI6MTc1NDU1NzI1NiwiZXhwIjoxNzU1MTYyMDU2fQ.5yTdvfRwHFIvTiyeTS2PR1o69NFDvsrtMe9cSHjV3Sc
