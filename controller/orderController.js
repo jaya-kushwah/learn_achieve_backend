@@ -88,7 +88,96 @@ getAllOrdersByUserId: async (req, res) => {
   },
 
  
-getOrderedPackagesWithDetails : async (req, res) => {
+// getOrderedPackagesWithDetails : async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     console.log("User ID:", userId);
+
+//     const orders = await Order.find({ userId }).lean();
+
+//     if (!orders.length) {
+//       return res.status(200).json({
+//         success: true,
+//         message: "No ordered packages found for the user",
+//         data: [],
+//       });
+//     }
+
+//     const orderedPackages = [];
+
+//     for (const order of orders) {
+//       for (const pkg of order.packages) {
+//         const packageId = pkg.packageId;
+
+//         const fullPackage = await Package.findById(packageId)
+//           .populate({
+//             path: "mockTests",
+//             populate: {
+//               path: "questions",
+//               strictPopulate: false, 
+//             },
+//           })
+//           .lean();
+
+//         if (fullPackage) {
+//           for (let mockTest of fullPackage.mockTests) {
+//             mockTest.orderId = order._id;
+
+//             if (!mockTest.questions || mockTest.questions.length === 0) {
+//               mockTest.questions = [];
+//               for (let subjectId of mockTest.subjects) {
+//                 const subjectQuestions = await QuestionBank.aggregate([
+//                   {
+//                     $match: {
+//                       subjectId: new mongoose.Types.ObjectId(subjectId),
+//                       status: "active",
+//                     },
+//                   },
+//                   { $sample: { size: 3 } },
+//                 ]);
+//                 mockTest.questions.push(...subjectQuestions);
+//               }
+//             }
+
+//             // SubQuestions attach करो
+//             for (let i = 0; i < mockTest.questions.length; i++) {
+//               const question = mockTest.questions[i];
+//               if (
+//                 question.typeOfQuestion === "Poem" ||
+//                 question.typeOfQuestion === "Comprehensive"
+//               ) {
+//                 const subQuestions = await SubQuestion.find({
+//                   parentId: question._id,
+//                 }).lean();
+//                 mockTest.questions[i] = {
+//                   ...question,
+//                   subQuestions,
+//                 };
+//               }
+//             }
+//           }
+//           orderedPackages.push(fullPackage);
+//         }
+//       }
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       message:
+//         "Ordered packages with MockTests and Questions fetched successfully",
+//       data: orderedPackages,
+//     });
+//   } catch (err) {
+//     console.error("Error in getOrderedPackagesWithDetails:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Server Error",
+//       error: err.message,
+//     });
+//   }
+// }
+
+getOrderedPackagesWithDetails: async (req, res) => {
   try {
     const userId = req.user._id;
     console.log("User ID:", userId);
@@ -112,10 +201,16 @@ getOrderedPackagesWithDetails : async (req, res) => {
         const fullPackage = await Package.findById(packageId)
           .populate({
             path: "mockTests",
-            populate: {
-              path: "questions",
-              strictPopulate: false, 
-            },
+            populate: [
+              {
+                path: "questions",
+                strictPopulate: false,
+              },
+              {
+                path: "subjects",
+                select: "_id subject", // only send id & subject name
+              },
+            ],
           })
           .lean();
 
@@ -123,23 +218,33 @@ getOrderedPackagesWithDetails : async (req, res) => {
           for (let mockTest of fullPackage.mockTests) {
             mockTest.orderId = order._id;
 
+            // ✅ Safely handle subjects array (objects or ObjectIds)
             if (!mockTest.questions || mockTest.questions.length === 0) {
               mockTest.questions = [];
-              for (let subjectId of mockTest.subjects) {
+
+              for (let subject of mockTest.subjects || []) {
+                const subjectId =
+                  typeof subject === "object" && subject._id
+                    ? subject._id
+                    : subject;
+
+                if (!subjectId) continue; // skip if no id
+
                 const subjectQuestions = await QuestionBank.aggregate([
                   {
                     $match: {
-                      subjectId: new mongoose.Types.ObjectId(subjectId),
+                      // subjectId: new mongoose.Types.ObjectId(subjectId),
                       status: "active",
                     },
                   },
                   { $sample: { size: 3 } },
                 ]);
+
                 mockTest.questions.push(...subjectQuestions);
               }
             }
 
-            // SubQuestions attach करो
+            // Attach subQuestions
             for (let i = 0; i < mockTest.questions.length; i++) {
               const question = mockTest.questions[i];
               if (
@@ -156,6 +261,7 @@ getOrderedPackagesWithDetails : async (req, res) => {
               }
             }
           }
+
           orderedPackages.push(fullPackage);
         }
       }
@@ -164,7 +270,7 @@ getOrderedPackagesWithDetails : async (req, res) => {
     return res.status(200).json({
       success: true,
       message:
-        "Ordered packages with MockTests and Questions fetched successfully",
+        "Ordered packages with MockTests, Questions & Subjects fetched successfully",
       data: orderedPackages,
     });
   } catch (err) {
@@ -176,6 +282,7 @@ getOrderedPackagesWithDetails : async (req, res) => {
     });
   }
 }
+
 
 };
 
