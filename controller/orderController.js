@@ -177,6 +177,120 @@ getAllOrdersByUserId: async (req, res) => {
 //   }
 // }
 
+
+// getOrderedPackagesWithDetails : async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+
+//     const orders = await Order.find({ userId }).lean();
+
+//     if (!orders.length) {
+//       return res.status(200).json({
+//         success: true,
+//         message: "No ordered packages found for the user",
+//         data: [],
+//       });
+//     }
+
+//     const orderedPackages = [];
+
+//     for (const order of orders) {
+//       for (const pkg of order.packages) {
+//         const packageId = pkg.packageId;
+
+//         const fullPackage = await Package.findById(packageId)
+//           .populate({
+//             path: "mockTests",
+//             populate: [
+//               { path: "questions" },
+//               { path: "subjects", select: "_id subject image color status" }, // ✅ Subject name भी मिलेगा
+//             ],
+//           })
+//           .lean();
+
+//         if (fullPackage) {
+//           for (let mockTest of fullPackage.mockTests) {
+//             // OrderId attach कर दो
+//             mockTest.orderId = order._id;
+
+//             // अगर questions नहीं हैं तो subjects से random pick करो
+//             if (!mockTest.questions || mockTest.questions.length === 0) {
+//               mockTest.questions = [];
+
+//               for (let subject of mockTest.subjects) {
+//                 let subjectId = subject?._id || subject;
+
+//                 // Safe conversion to ObjectId
+//                 if (
+//                   subjectId &&
+//                   !(subjectId instanceof mongoose.Types.ObjectId)
+//                 ) {
+//                   try {
+//                     subjectId = new mongoose.Types.ObjectId(subjectId);
+//                   } catch (err) {
+//                     console.error("❌ Invalid subjectId skipped:", subjectId);
+//                     continue;
+//                   }
+//                 }
+
+//                 if (!subjectId) continue;
+
+//                 const subjectQuestions = await QuestionBank.aggregate([
+//                   {
+//                     $match: {
+//                       subjectId: subjectId,
+//                       status: "active",
+//                     },
+//                   },
+//                   { $sample: { size: 3 } }, // random 3 questions
+//                 ]);
+
+//                 mockTest.questions.push(...subjectQuestions);
+//               }
+//             }
+
+//             // Poem/Comprehensive के लिए subQuestions attach
+//             for (let i = 0; i < mockTest.questions.length; i++) {
+//               const question = mockTest.questions[i];
+
+//               if (
+//                 question.typeOfQuestion === "Poem" ||
+//                 question.typeOfQuestion === "Comprehensive"
+//               ) {
+//                 const subQuestions = await SubQuestion.find({
+//                   parentId: question._id,
+//                 }).lean();
+
+//                 mockTest.questions[i] = {
+//                   ...question,
+//                   subQuestions,
+//                 };
+//               }
+//             }
+//           }
+
+//           orderedPackages.push(fullPackage);
+//         }
+//       }
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       message:
+//         "Ordered packages with MockTests, Subjects and Questions fetched successfully",
+//       data: orderedPackages,
+//     });
+//   } catch (err) {
+//     console.error("Error in getOrderedPackagesWithDetails:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Server Error",
+//       error: err.message,
+//     });
+
+//   }}
+
+
 getOrderedPackagesWithDetails: async (req, res) => {
   try {
     const userId = req.user._id;
@@ -228,7 +342,7 @@ getOrderedPackagesWithDetails: async (req, res) => {
                     ? subject._id
                     : subject;
 
-                if (!subjectId) continue; // skip if no id
+                if (!subjectId) continue;
 
                 const subjectQuestions = await QuestionBank.aggregate([
                   {
@@ -244,7 +358,7 @@ getOrderedPackagesWithDetails: async (req, res) => {
               }
             }
 
-            // Attach subQuestions
+            // Attach subQuestions as IDs only
             for (let i = 0; i < mockTest.questions.length; i++) {
               const question = mockTest.questions[i];
               if (
@@ -253,10 +367,15 @@ getOrderedPackagesWithDetails: async (req, res) => {
               ) {
                 const subQuestions = await SubQuestion.find({
                   parentId: question._id,
-                }).lean();
+                })
+                  .select("_id") // only fetch IDs
+                  .lean();
+
+                const subQuestionIds = subQuestions.map((sq) => sq._id);
+
                 mockTest.questions[i] = {
                   ...question,
-                  subQuestions,
+                  subQuestions: subQuestionIds, // attach only IDs
                 };
               }
             }
@@ -282,6 +401,113 @@ getOrderedPackagesWithDetails: async (req, res) => {
     });
   }
 }
+
+
+// getOrderedPackagesWithDetails: async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     console.log("User ID:", userId);
+
+//     const orders = await Order.find({ userId }).lean();
+
+//     if (!orders.length) {
+//       return res.status(200).json({
+//         success: true,
+//         message: "No ordered packages found for the user",
+//         data: [],
+//       });
+//     }
+
+//     const orderedPackages = [];
+
+//     for (const order of orders) {
+//       for (const pkg of order.packages) {
+//         const packageId = pkg.packageId;
+
+//         const fullPackage = await Package.findById(packageId)
+//           .populate({
+//             path: "mockTests",
+//             populate: [
+//               {
+//                 path: "questions",
+//                 strictPopulate: false,
+//               },
+//               {
+//                 path: "subjects",
+//                 select: "_id subject", // only send id & subject name
+//               },
+//             ],
+//           })
+//           .lean();
+
+//         if (fullPackage) {
+//           for (let mockTest of fullPackage.mockTests) {
+//             mockTest.orderId = order._id;
+
+//             // ✅ Safely handle subjects array (objects or ObjectIds)
+//             if (!mockTest.questions || mockTest.questions.length === 0) {
+//               mockTest.questions = [];
+
+//               for (let subject of mockTest.subjects || []) {
+//                 const subjectId =
+//                   typeof subject === "object" && subject._id
+//                     ? subject._id
+//                     : subject;
+
+//                 if (!subjectId) continue; // skip if no id
+
+//                 const subjectQuestions = await QuestionBank.aggregate([
+//                   {
+//                     $match: {
+//                       // subjectId: new mongoose.Types.ObjectId(subjectId),
+//                       status: "active",
+//                     },
+//                   },
+//                   { $sample: { size: 3 } },
+//                 ]);
+
+//                 mockTest.questions.push(...subjectQuestions);
+//               }
+//             }
+
+//             // Attach subQuestions
+//             for (let i = 0; i < mockTest.questions.length; i++) {
+//               const question = mockTest.questions[i];
+//               if (
+//                 question.typeOfQuestion === "Poem" ||
+//                 question.typeOfQuestion === "Comprehensive"
+//               ) {
+//                 const subQuestions = await SubQuestion.find({
+//                   parentId: question._id,
+//                 }).lean();
+//                 mockTest.questions[i] = {
+//                   ...question,
+//                   subQuestions,
+//                 };
+//               }
+//             }
+//           }
+
+//           orderedPackages.push(fullPackage);
+//         }
+//       }
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       message:
+//         "Ordered packages with MockTests, Questions & Subjects fetched successfully",
+//       data: orderedPackages,
+//     });
+//   } catch (err) {
+//     console.error("Error in getOrderedPackagesWithDetails:", err);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Server Error",
+//       error: err.message,
+//     });
+//   }
+// }
 
 
 };
